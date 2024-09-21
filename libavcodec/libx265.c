@@ -762,6 +762,17 @@ static int libx265_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
                 sei->numPayloads++;
             }
         }
+
+        for (int i = 0; i < pic->nb_side_data; i++)
+        {
+            const AVFrameSideData *side_data = pic->side_data[i];
+            if (side_data->type == AV_FRAME_DATA_DOVI_RPU_BUFFER)
+            {
+                x265_dolby_vision_rpu *rpu = &x265pic.rpu;
+                rpu->payload = side_data->data;
+                rpu->payloadSize = side_data->size;
+            }
+        }
     }
 
     ret = ctx->api->encoder_encode(ctx->encoder, &nal, &nnal,
