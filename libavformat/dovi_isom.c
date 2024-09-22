@@ -69,7 +69,7 @@ int ff_isom_parse_dvcc_dvvc(void *logctx, AVStream *st,
         return AVERROR(ENOMEM);
     }
 
-    av_log(logctx, AV_LOG_TRACE, "DOVI in dvcC/dvvC/dvwC box, version: %d.%d, profile: %d, level: %d, "
+    av_log(logctx, AV_LOG_INFO, "DOVI in dvcC/dvvC/dvwC box, version: %d.%d, profile: %d, level: %d, "
            "rpu flag: %d, el flag: %d, bl flag: %d, compatibility id: %d\n",
            dovi->dv_version_major, dovi->dv_version_minor,
            dovi->dv_profile, dovi->dv_level,
@@ -105,7 +105,7 @@ void ff_isom_put_dvcc_dvvc(void *logctx, uint8_t out[ISOM_DVCC_DVVC_SIZE],
 
     flush_put_bits(&pb);
 
-    av_log(logctx, AV_LOG_DEBUG,
+    av_log(logctx, AV_LOG_INFO,
            "DOVI in %s box, version: %d.%d, profile: %d, level: %d, "
            "rpu flag: %d, el flag: %d, bl flag: %d, compatibility id: %d\n",
            dovi->dv_profile > 10 ? "dvwC" : (dovi->dv_profile > 7 ? "dvvC" : "dvcC"),
