@@ -229,7 +229,7 @@ static const AVFilterPad outputs[] = {
 const AVFilter ff_vf_rpu_converter = {
     .name        = "rpu_converter",
     .description = NULL_IF_CONFIG_SMALL("rpu_converter."),
-    .priv_size       = sizeof(RpuConverterContext),
+    .priv_size   = sizeof(RpuConverterContext),
     .init        = rpu_converter_init,
     .uninit      = rpu_converter_uninit,
     FILTER_INPUTS(inputs),
