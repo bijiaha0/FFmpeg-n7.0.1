@@ -528,6 +528,37 @@ FF_ENABLE_DEPRECATION_WARNINGS
         }
     }
 
+    /*
+     * Update and set Dolby Vision level
+     */
+    if (passthru_dynamic_hdr_metadata & DOVI)
+    {
+        char dolbyVisionProfile[256];
+        snprintf(dolbyVisionProfile, sizeof(dolbyVisionProfile),
+                 "%hu%hu",
+                 (unsigned short)ff_dovi.dv_profile,
+                 (unsigned short)ff_dovi.dv_bl_signal_compatibility_id);
+
+        ctx->api->param_parse(ctx->params, "dolby-vision-profile", dolbyVisionProfile);
+
+        int pps = (double)avctx->width * avctx->height * (avctx->framerate.num / avctx->framerate.den);
+
+        int bitrate = -1;
+
+
+        // Dolby Vision requires VBV settings to enable HRD
+        // set the max value for the current level or guess one
+        if (ctx->params->rc.vbvMaxBitrate == 0 || ctx->params->rc.vbvBufferSize == 0)
+        {
+            int max_rate = hb_dovi_max_rate(HB_VCODEC_H265_MASK, avctx->width, pps, bitrate,
+                                            ctx->params->levelIdc, ctx->params->bHighTier);
+            ctx->params->rc.vbvMaxBitrate = max_rate;
+            ctx->params->rc.vbvBufferSize = max_rate;
+        }
+
+        ff_dovi.dv_level = hb_dovi_level(avctx->width, pps, ctx->params->rc.vbvMaxBitrate, ctx->params->bHighTier);
+    }
+
     ctx->encoder = ctx->api->encoder_open(ctx->params);
     if (!ctx->encoder) {
         av_log(avctx, AV_LOG_ERROR, "Cannot open libx265 encoder.\n");

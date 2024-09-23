@@ -599,4 +599,13 @@ extern hb_mastering_display_metadata_t ff_mastering;
 
 enum {NONE_HDR = 0x0, ALL = 0x3, DOVI = 0x1, HDR_10_PLUS = 0x2} passthru_dynamic_hdr_metadata;
 
+
+#define HB_VCODEC_AV1_MASK           0x40000000
+#define HB_VCODEC_H264_MASK          0x20000000
+#define HB_VCODEC_H265_MASK          0x10000000
+
+int hb_dovi_max_rate(int vcodec, int width, int pps, int bitrate, int level, int high_tier);
+int hb_dovi_level(int width, int pps, int max_rate, int high_tier);
+
+
 #endif /* AVUTIL_COMMON_H */
