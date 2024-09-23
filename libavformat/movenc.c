@@ -2527,20 +2527,6 @@ static int mov_write_video_tag(AVFormatContext *s, AVIOContext *pb, MOVMuxContex
         const AVPacketSideData *spherical_mapping = av_packet_side_data_get(track->st->codecpar->coded_side_data,
                                                                             track->st->codecpar->nb_coded_side_data,
                                                                             AV_PKT_DATA_SPHERICAL);
-
-        av_packet_side_data_remove(track->st->codecpar->coded_side_data, &track->st->codecpar->nb_coded_side_data,AV_PKT_DATA_DOVI_CONF);
-
-        AVDOVIDecoderConfigurationRecord tmp_dovi = hb_dovi_hb_to_ff(ff_dovi);
-
-        uint8_t *dovi_data = av_malloc(sizeof(AVDOVIDecoderConfigurationRecord));
-        memcpy(dovi_data, &tmp_dovi, sizeof(AVDOVIDecoderConfigurationRecord));
-
-        av_packet_side_data_add(&track->st->codecpar->coded_side_data,
-                                &track->st->codecpar->nb_coded_side_data,
-                                AV_PKT_DATA_DOVI_CONF,
-                                dovi_data,
-                                sizeof(AVDOVIDecoderConfigurationRecord), 0);
-
         const AVPacketSideData *dovi = av_packet_side_data_get(track->st->codecpar->coded_side_data,
                                                                track->st->codecpar->nb_coded_side_data,
                                                                AV_PKT_DATA_DOVI_CONF);

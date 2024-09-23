@@ -371,12 +371,27 @@ int enc_open(void *opaque, const AVFrame *frame)
         for (int i = 0; i < ist->st->codecpar->nb_coded_side_data; i++) {
             AVPacketSideData *sd_src = &ist->st->codecpar->coded_side_data[i];
             if (sd_src->type != AV_PKT_DATA_CPB_PROPERTIES) {
-                AVPacketSideData *sd_dst = av_packet_side_data_new(&ost->par_in->coded_side_data,
-                                                                   &ost->par_in->nb_coded_side_data,
-                                                                   sd_src->type, sd_src->size, 0);
-                if (!sd_dst)
-                    return AVERROR(ENOMEM);
-                memcpy(sd_dst->data, sd_src->data, sd_src->size);
+                AVPacketSideData *sd_dst;
+                if (sd_src->type == AV_PKT_DATA_DOVI_CONF) {
+                    AVDOVIDecoderConfigurationRecord tmp_dovi = hb_dovi_hb_to_ff(ff_dovi);
+
+                    sd_dst = av_packet_side_data_new(&ost->par_in->coded_side_data,
+                                                     &ost->par_in->nb_coded_side_data,
+                                                     sd_src->type,sizeof(AVDOVIDecoderConfigurationRecord), 0);
+                    if (!sd_dst)
+                        return AVERROR(ENOMEM);
+
+                    memcpy(sd_dst->data, &tmp_dovi, sizeof(AVDOVIDecoderConfigurationRecord));
+
+                } else{
+                    sd_dst = av_packet_side_data_new(&ost->par_in->coded_side_data,
+                                                                       &ost->par_in->nb_coded_side_data,
+                                                                       sd_src->type, sd_src->size, 0);
+                    if (!sd_dst)
+                        return AVERROR(ENOMEM);
+                    memcpy(sd_dst->data, sd_src->data, sd_src->size);
+                }
+
                 if (ist->autorotate && sd_src->type == AV_PKT_DATA_DISPLAYMATRIX)
                     av_display_rotation_set((int32_t *)sd_dst->data, 0);
             }
