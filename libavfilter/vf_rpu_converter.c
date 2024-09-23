@@ -5,6 +5,7 @@
 #include "formats.h"
 #include "internal.h"
 #include "libavutil/mem.h"
+#include "libavutil/common.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "libdovi/rpu_parser.h"
