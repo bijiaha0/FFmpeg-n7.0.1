@@ -78,14 +78,7 @@ int ff_isom_parse_dvcc_dvvc(void *logctx, AVStream *st,
            dovi->bl_present_flag,
            dovi->dv_bl_signal_compatibility_id);
 
-    ff_dovi.dv_version_major = dovi->dv_version_major;
-    ff_dovi.dv_version_minor = dovi->dv_version_minor;
-    ff_dovi.dv_profile = dovi->dv_profile;
-    ff_dovi.dv_level = dovi->dv_level;
-    ff_dovi.rpu_present_flag = dovi->rpu_present_flag;
-    ff_dovi.el_present_flag = dovi->el_present_flag;
-    ff_dovi.bl_present_flag = dovi->bl_present_flag;
-    ff_dovi.dv_bl_signal_compatibility_id = dovi->dv_bl_signal_compatibility_id;
+    ff_dovi = hb_dovi_ff_to_hb(*dovi);
 
     return 0;
 }

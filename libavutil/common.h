@@ -610,4 +610,6 @@ int hb_dovi_level(int width, int pps, int max_rate, int high_tier);
 
 AVDOVIDecoderConfigurationRecord hb_dovi_hb_to_ff(hb_dovi_conf_t dovi);
 
+hb_dovi_conf_t hb_dovi_ff_to_hb(AVDOVIDecoderConfigurationRecord dovi);
+
 #endif /* AVUTIL_COMMON_H */
