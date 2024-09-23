@@ -43,6 +43,7 @@
 #include "error.h"
 #include "macros.h"
 #include "mem.h"
+#include "rational.h"
 
 #ifdef HAVE_AV_CONFIG_H
 #   include "config.h"
@@ -569,5 +570,31 @@ static av_always_inline av_const int av_parity_c(uint32_t v)
             PUT_16BIT\
         }\
     }\
+
+typedef struct hb_dovi_conf_s
+{
+    unsigned dv_version_major;
+    unsigned dv_version_minor;
+    unsigned dv_profile;
+    unsigned dv_level;
+    unsigned rpu_present_flag;
+    unsigned el_present_flag;
+    unsigned bl_present_flag;
+    unsigned dv_bl_signal_compatibility_id;
+} hb_dovi_conf_t;
+
+typedef struct hb_mastering_display_metadata_s
+{
+    AVRational display_primaries[3][2];
+    AVRational white_point[2];
+    AVRational min_luminance;
+    AVRational max_luminance;
+    int has_primaries;
+    int has_luminance;
+} hb_mastering_display_metadata_t;
+
+extern hb_dovi_conf_t ff_dovi;
+
+extern hb_mastering_display_metadata_t ff_mastering;
 
 #endif /* AVUTIL_COMMON_H */

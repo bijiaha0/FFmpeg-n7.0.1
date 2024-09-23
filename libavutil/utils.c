@@ -98,6 +98,10 @@ AVRational av_get_time_base_q(void)
     return (AVRational){1, AV_TIME_BASE};
 }
 
+hb_dovi_conf_t ff_dovi;
+
+hb_mastering_display_metadata_t ff_mastering;
+
 void av_assert0_fpu(void) {
 #if HAVE_MMX_INLINE
     uint16_t state[14];

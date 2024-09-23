@@ -9719,6 +9719,21 @@ static int mov_read_header(AVFormatContext *s)
                                              (uint8_t *)sc->mastering, sizeof(*sc->mastering), 0))
                     return AVERROR(ENOMEM);
 
+                for (int k = 0; k < 3; k++)
+                {
+                    ff_mastering.display_primaries[k][0] = sc->mastering->display_primaries[k][0];
+                    ff_mastering.display_primaries[k][1] = sc->mastering->display_primaries[k][1];
+                }
+
+                ff_mastering.white_point[0] = sc->mastering->white_point[0];
+                ff_mastering.white_point[1] = sc->mastering->white_point[1];
+
+                ff_mastering.min_luminance = sc->mastering->min_luminance;
+                ff_mastering.max_luminance = sc->mastering->max_luminance;
+
+                ff_mastering.has_primaries = sc->mastering->has_primaries;
+                ff_mastering.has_luminance = sc->mastering->has_luminance;
+
                 sc->mastering = NULL;
             }
             if (sc->coll) {
