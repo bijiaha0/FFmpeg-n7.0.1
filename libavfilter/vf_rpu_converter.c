@@ -158,12 +158,49 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
 
 }
 
-
 static av_cold int rpu_converter_init(AVFilterContext *ctx) {
-    RpuConverterContext *context = ctx->priv;
-    int mode = RPU_MODE_EMIT_UNSPECT_62_NAL;
-    context->mode = mode;
+    int mode = 0;
 
+    passthru_dynamic_hdr_metadata |= ff_dovi.dv_profile ? DOVI : NONE_HDR;
+
+    if ((ff_dovi.dv_profile != 5 && ff_dovi.dv_profile != 7 &&
+        ff_dovi.dv_profile != 8 && ff_dovi.dv_profile != 10))
+    {
+        passthru_dynamic_hdr_metadata &= ~DOVI;
+    }
+
+    if ((ff_dovi.dv_profile == 8 || ff_dovi.dv_profile == 10) &&
+        ff_dovi.dv_bl_signal_compatibility_id == 1)
+    {
+        if (ff_mastering.has_primaries == 0 && ff_mastering.has_luminance == 0)
+        {
+            av_log(ctx, AV_LOG_INFO,"work: missing mastering metadata, disabling Dolby Vision");
+            passthru_dynamic_hdr_metadata &= ~DOVI;
+        }
+    }
+
+    if (passthru_dynamic_hdr_metadata & DOVI)
+    {
+        if (ff_dovi.dv_profile == 7 ||
+            (ff_dovi.dv_profile == 8 && ff_dovi.dv_bl_signal_compatibility_id == 6))
+        {
+            // Convert to 8.1
+            mode |= RPU_MODE_CONVERT_TO_8_1;
+
+            ff_dovi.dv_profile = 8;
+            ff_dovi.el_present_flag = 0;
+            ff_dovi.dv_bl_signal_compatibility_id = 1;
+        }
+
+        mode |= RPU_MODE_EMIT_UNSPECT_62_NAL;
+        if (ff_dovi.dv_profile == 10)
+        {
+            ff_dovi.dv_profile = ff_dovi.dv_bl_signal_compatibility_id == 0 ? 5 : 8;
+        }
+    }
+
+    RpuConverterContext *context = ctx->priv;
+    context->mode = mode;
     printf("rpu converter init.\n");
     return 0;
 }

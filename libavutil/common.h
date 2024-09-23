@@ -597,4 +597,6 @@ extern hb_dovi_conf_t ff_dovi;
 
 extern hb_mastering_display_metadata_t ff_mastering;
 
+enum {NONE_HDR = 0x0, ALL = 0x3, DOVI = 0x1, HDR_10_PLUS = 0x2} passthru_dynamic_hdr_metadata;
+
 #endif /* AVUTIL_COMMON_H */
