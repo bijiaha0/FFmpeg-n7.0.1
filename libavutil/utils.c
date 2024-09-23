@@ -102,6 +102,21 @@ hb_dovi_conf_t ff_dovi;
 
 hb_mastering_display_metadata_t ff_mastering;
 
+AVDOVIDecoderConfigurationRecord hb_dovi_hb_to_ff(hb_dovi_conf_t dovi)
+{
+    AVDOVIDecoderConfigurationRecord res_dovi;
+
+    res_dovi.dv_version_major = dovi.dv_version_major;
+    res_dovi.dv_version_minor = dovi.dv_version_minor;
+    res_dovi.dv_profile = dovi.dv_profile;
+    res_dovi.dv_level = dovi.dv_level;
+    res_dovi.rpu_present_flag = dovi.rpu_present_flag;
+    res_dovi.el_present_flag = dovi.el_present_flag;
+    res_dovi.bl_present_flag = dovi.bl_present_flag;
+    res_dovi.dv_bl_signal_compatibility_id = dovi.dv_bl_signal_compatibility_id;
+
+    return res_dovi;
+}
 
 static struct
 {

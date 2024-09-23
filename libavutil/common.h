@@ -44,6 +44,7 @@
 #include "macros.h"
 #include "mem.h"
 #include "rational.h"
+#include "dovi_meta.h"
 
 #ifdef HAVE_AV_CONFIG_H
 #   include "config.h"
@@ -607,5 +608,6 @@ enum {NONE_HDR = 0x0, ALL = 0x3, DOVI = 0x1, HDR_10_PLUS = 0x2} passthru_dynamic
 int hb_dovi_max_rate(int vcodec, int width, int pps, int bitrate, int level, int high_tier);
 int hb_dovi_level(int width, int pps, int max_rate, int high_tier);
 
+AVDOVIDecoderConfigurationRecord hb_dovi_hb_to_ff(hb_dovi_conf_t dovi);
 
 #endif /* AVUTIL_COMMON_H */
