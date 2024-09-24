@@ -10,12 +10,6 @@
 #include <stdlib.h>
 #include "libdovi/rpu_parser.h"
 
-#define RPU_MODE_UPDATE_ACTIVE_AREA  1
-#define RPU_MODE_CONVERT_TO_8_1      2
-
-#define RPU_MODE_EMIT_UNSPECT_62_NAL 4
-#define RPU_MODE_EMIT_T35_OBU        8
-
 typedef struct RpuConverterContext {
     int        mode;
     AVBufferRef        *rpu;
@@ -159,12 +153,26 @@ static int filter_frame(AVFilterLink *inlink, AVFrame *frame)
 }
 
 static av_cold int rpu_converter_init(AVFilterContext *ctx) {
-    int mode = 0;
+    printf("rpu converter init.\n");
+    return 0;
+}
+
+static av_cold void rpu_converter_uninit(AVFilterContext *ctx) {
+    RpuConverterContext *context = ctx->priv;
+    av_buffer_unref(&context->rpu);
+    printf("rpu converter uninit.\n");
+}
+
+static int config_input(AVFilterLink *inlink)
+{
+    AVFilterContext *avctx = inlink->dst;
+    RpuConverterContext *context = avctx->priv;
+    mode = 0;
 
     passthru_dynamic_hdr_metadata |= ff_dovi.dv_profile ? DOVI : NONE_HDR;
 
     if ((ff_dovi.dv_profile != 5 && ff_dovi.dv_profile != 7 &&
-        ff_dovi.dv_profile != 8 && ff_dovi.dv_profile != 10))
+         ff_dovi.dv_profile != 8 && ff_dovi.dv_profile != 10))
     {
         passthru_dynamic_hdr_metadata &= ~DOVI;
     }
@@ -174,7 +182,7 @@ static av_cold int rpu_converter_init(AVFilterContext *ctx) {
     {
         if (ff_mastering.has_primaries == 0 && ff_mastering.has_luminance == 0)
         {
-            av_log(ctx, AV_LOG_INFO,"work: missing mastering metadata, disabling Dolby Vision");
+            av_log(avctx, AV_LOG_INFO,"work: missing mastering metadata, disabling Dolby Vision");
             passthru_dynamic_hdr_metadata &= ~DOVI;
         }
     }
@@ -199,22 +207,16 @@ static av_cold int rpu_converter_init(AVFilterContext *ctx) {
         }
     }
 
-    RpuConverterContext *context = ctx->priv;
     context->mode = mode;
-    printf("rpu converter init.\n");
-    return 0;
-}
 
-static av_cold void rpu_converter_uninit(AVFilterContext *ctx) {
-    RpuConverterContext *context = ctx->priv;
-    av_buffer_unref(&context->rpu);
-    printf("rpu converter uninit.\n");
+    return 0;
 }
 
 static const AVFilterPad inputs[] = {
     {
         .name         = "default",
         .type         = AVMEDIA_TYPE_VIDEO,
+        .config_props = config_input,
         .filter_frame = filter_frame,
     },
 };

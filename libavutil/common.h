@@ -600,6 +600,14 @@ extern hb_mastering_display_metadata_t ff_mastering;
 
 enum {NONE_HDR = 0x0, ALL = 0x3, DOVI = 0x1, HDR_10_PLUS = 0x2} passthru_dynamic_hdr_metadata;
 
+int mode;
+
+#define RPU_MODE_UPDATE_ACTIVE_AREA  1
+#define RPU_MODE_CONVERT_TO_8_1      2
+
+#define RPU_MODE_EMIT_UNSPECT_62_NAL 4
+#define RPU_MODE_EMIT_T35_OBU        8
+
 
 #define HB_VCODEC_AV1_MASK           0x40000000
 #define HB_VCODEC_H264_MASK          0x20000000
