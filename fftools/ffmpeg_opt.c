@@ -53,6 +53,7 @@
 #include "libavutil/parseutils.h"
 #include "libavutil/pixdesc.h"
 #include "libavutil/pixfmt.h"
+#include "libavutil/common.h"
 
 HWDevice *filter_hw_device;
 
@@ -85,6 +86,7 @@ int vstats_version = 2;
 int auto_conversion_filters = 1;
 int64_t stats_period = 500000;
 
+int hdr_10_plus = 0;
 
 static int file_overwrite     = 0;
 static int no_file_overwrite  = 0;
@@ -1246,6 +1248,10 @@ int ffmpeg_parse_options(int argc, char **argv, Scheduler *sch)
         goto fail;
     }
 
+    if (hdr_10_plus == 1) {
+        passthru_dynamic_hdr_metadata |= HDR_10_PLUS;
+    }
+
     /* configure terminal and setup signal handlers */
     term_init();
 
@@ -1910,6 +1916,6 @@ const OptionDef options[] = {
         { .func_arg = opt_vsync },
         "set video sync method globally; deprecated, use -fps_mode", "" },
 #endif
-
+    { "hdr_10_plus",            OPT_TYPE_BOOL, OPT_EXPERT,{ &hdr_10_plus },"enable hdr 10 plus." },
     { NULL, },
 };

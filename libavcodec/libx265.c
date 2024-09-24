@@ -39,6 +39,7 @@
 #include "packet_internal.h"
 #include "atsc_a53.h"
 #include "sei.h"
+#include "libavutil/hdr_dynamic_metadata.h"
 
 typedef struct ReorderedData {
     int64_t duration;
@@ -794,12 +795,42 @@ static int libx265_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
             }
         }
 
-        if (passthru_dynamic_hdr_metadata & DOVI){
+        if (passthru_dynamic_hdr_metadata){
 
-            for (int i = 0; i < pic->nb_side_data; i++)
+            for (int k = 0; k < pic->nb_side_data; k++)
             {
-                const AVFrameSideData *side_data = pic->side_data[i];
-                if (side_data->type == AV_FRAME_DATA_DOVI_RPU_BUFFER)
+                const AVFrameSideData *side_data = pic->side_data[k];
+
+                if (passthru_dynamic_hdr_metadata & HDR_10_PLUS && side_data->type == AV_FRAME_DATA_DYNAMIC_HDR_PLUS)
+                {
+                    uint8_t *payload = NULL;
+                    uint32_t playload_size = 0;
+                    void *tmp;
+                    x265_sei_payload *sei_payload = NULL;
+
+                    hb_dynamic_hdr10_plus_to_itu_t_t35((AVDynamicHDRPlus *)side_data->data, &payload, &playload_size);
+                    if (!playload_size)
+                    {
+                        continue;
+                    }
+
+                    tmp = av_fast_realloc(ctx->sei_data, &ctx->sei_data_size,(sei->numPayloads + 1) * sizeof(*sei_payload));
+
+                    if (!tmp)
+                    {
+                        continue;
+                    }
+
+                    ctx->sei_data = tmp;
+                    sei->payloads = ctx->sei_data;
+                    sei_payload = &sei->payloads[sei->numPayloads];
+                    sei_payload->payload = payload;
+                    sei_payload->payloadSize = playload_size;
+                    sei_payload->payloadType = USER_DATA_REGISTERED_ITU_T_T35;
+                    sei->numPayloads++;
+                }
+
+                if (passthru_dynamic_hdr_metadata & DOVI && side_data->type == AV_FRAME_DATA_DOVI_RPU_BUFFER)
                 {
                     x265_dolby_vision_rpu *rpu = &x265pic.rpu;
                     rpu->payload = side_data->data;

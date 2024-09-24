@@ -307,6 +307,286 @@ int hb_dovi_level(int width, int pps, int max_rate, int high_tier)
     return dv_level;
 }
 
+void hb_bitstream_init(hb_bitstream_t *bs,
+                       uint8_t *buf,
+                       uint32_t buf_size,
+                       int clear)
+{
+    bs->pos = 0;
+    bs->buf = buf;
+    bs->buf_size = buf_size << 3;
+    if (clear)
+    {
+        memset(bs->buf, 0, buf_size);
+    }
+}
+
+void hb_bitstream_put_bytes(hb_bitstream_t *bs,
+                            uint8_t *bytes,
+                            uint32_t num_bytes)
+{
+    uint32_t num_bits = num_bytes << 3;
+
+    if (num_bits + bs->pos > bs->buf_size)
+    {
+        return;
+    }
+
+    if ((bs->pos & 7) == 0)
+    {
+        memcpy(&bs->buf[bs->pos >> 3], bytes, num_bytes);
+        bs->pos += num_bits;
+    }
+    else
+    {
+        for (uint32_t i = 0; i < num_bytes; i++)
+        {
+            hb_bitstream_put_bits(bs, bytes[i], 8);
+        }
+    }
+}
+
+void hb_bitstream_put_bits(hb_bitstream_t *bs,
+                           uint32_t bits,
+                           uint32_t num_bits)
+{
+    if (num_bits + bs->pos > bs->buf_size)
+    {
+        return;
+    }
+    if (num_bits > 32) {
+        return;
+    }
+
+    for (int8_t i = num_bits - 1; i >= 0; i--)
+    {
+        bs->buf[bs->pos >> 3] |= ((bits >> i) & 1) << (7 - (bs->pos & 7));
+        bs->pos++;
+    }
+
+}
+
+uint32_t hb_bitstream_peak_bits(hb_bitstream_t *bs,
+                                uint32_t num_bits)
+{
+    if (num_bits + bs->pos > bs->buf_size)
+    {
+        return 0;
+    }
+    if (num_bits > 32) {
+        return 0;
+    }
+
+    uint32_t value = 0;
+    uint32_t pos = bs->pos;
+
+    for (uint8_t i = 0; i < num_bits; i++)
+    {
+        value <<= 1;
+        value |= (bs->buf[pos >> 3] >> (7 - (pos & 7))) & 1;
+        pos++;
+    }
+
+    return value;
+}
+
+uint32_t hb_bitstream_get_bits(hb_bitstream_t *bs,
+                               uint32_t num_bits)
+{
+    if (num_bits + bs->pos > bs->buf_size)
+    {
+        return 0;
+    }
+    if (num_bits > 32)
+    {
+        return 0;
+    }
+
+    uint32_t value = 0;
+
+    for (uint8_t i = 0; i < num_bits; i++)
+    {
+        value <<= 1;
+        value |= (bs->buf[bs->pos >> 3] >> (7 - (bs->pos & 7))) & 1;
+        bs->pos++;
+    }
+
+    return value;
+}
+
+void hb_bitstream_skip_bytes(hb_bitstream_t *bs,
+                             uint32_t num_bytes)
+{
+    hb_bitstream_skip_bits(bs, num_bytes << 3);
+}
+
+void hb_bitstream_skip_bits(hb_bitstream_t *bs,
+                            uint32_t num_bits)
+{
+    hb_bitstream_set_bit_position(bs, hb_bitstream_get_bit_position(bs) + num_bits);
+}
+
+uint32_t hb_bitstream_get_bit_position(hb_bitstream_t *bs)
+{
+    return bs->pos;
+}
+
+void hb_bitstream_set_bit_position(hb_bitstream_t *bs,
+                                   uint32_t pos)
+{
+    if (pos > bs->buf_size)
+    {
+        return;
+    }
+    bs->pos = pos;
+}
+
+uint8_t * hb_bitstream_get_buffer(hb_bitstream_t *bs)
+{
+    return bs->buf;
+}
+
+uint32_t hb_bitstream_get_count_of_bytes(hb_bitstream_t *bs)
+{
+    return (hb_bitstream_get_count_of_bits(bs) + 7) / 8;
+}
+
+uint32_t hb_bitstream_get_count_of_bits(hb_bitstream_t *bs)
+{
+    return bs->buf_size;
+}
+
+uint32_t hb_bitstream_get_count_of_used_bytes(hb_bitstream_t *bs)
+{
+    return (bs->pos + 7) / 8;
+}
+
+uint32_t hb_bitstream_get_remaining_bits(hb_bitstream_t *bs)
+{
+    return bs->buf_size - bs->pos;
+}
+
+void hb_dynamic_hdr10_plus_to_itu_t_t35(const AVDynamicHDRPlus *s, uint8_t **buf_p, uint32_t *size)
+{
+    const uint8_t countryCode = 0xB5;
+    const uint16_t terminalProviderCode = 0x003C;
+    const uint16_t terminalProviderOrientedCode = 0x0001;
+    const uint8_t applicationIdentifier = 4;
+
+    uint8_t *buf = av_mallocz(2048);
+    hb_bitstream_t bs;
+
+    hb_bitstream_init(&bs, buf, 2048, 0);
+
+    hb_bitstream_put_bits(&bs, countryCode, 8);
+    hb_bitstream_put_bits(&bs, terminalProviderCode, 16);
+    hb_bitstream_put_bits(&bs, terminalProviderOrientedCode, 16);
+
+    hb_bitstream_put_bits(&bs, applicationIdentifier, 8);
+    hb_bitstream_put_bits(&bs, s->application_version, 8);
+    hb_bitstream_put_bits(&bs, s->num_windows, 2);
+
+    for (int w = 1; w < s->num_windows; w++)
+    {
+        const AVHDRPlusColorTransformParams *params = &s->params[w];
+
+        hb_bitstream_put_bits(&bs, params->window_upper_left_corner_x.num, 16);
+        hb_bitstream_put_bits(&bs, params->window_upper_left_corner_x.num, 16);
+        hb_bitstream_put_bits(&bs, params->window_upper_left_corner_x.num, 16);
+        hb_bitstream_put_bits(&bs, params->window_upper_left_corner_x.num, 16);
+
+        hb_bitstream_put_bits(&bs, params->center_of_ellipse_x, 16);
+        hb_bitstream_put_bits(&bs, params->center_of_ellipse_y, 16);
+        hb_bitstream_put_bits(&bs, params->rotation_angle, 8);
+        hb_bitstream_put_bits(&bs, params->semimajor_axis_internal_ellipse, 16);
+        hb_bitstream_put_bits(&bs, params->semimajor_axis_external_ellipse, 16);
+        hb_bitstream_put_bits(&bs, params->semiminor_axis_external_ellipse, 16);
+        hb_bitstream_put_bits(&bs, params->overlap_process_option, 1);
+    }
+
+    hb_bitstream_put_bits(&bs, s->targeted_system_display_maximum_luminance.num, 27);
+    hb_bitstream_put_bits(&bs, s->targeted_system_display_actual_peak_luminance_flag, 1);
+
+    if (s->targeted_system_display_actual_peak_luminance_flag)
+    {
+        hb_bitstream_put_bits(&bs, s->num_rows_targeted_system_display_actual_peak_luminance, 5);
+        hb_bitstream_put_bits(&bs, s->num_cols_targeted_system_display_actual_peak_luminance, 5);
+
+        for (int i = 0; i < s->num_rows_targeted_system_display_actual_peak_luminance; i++)
+        {
+            for (int j = 0; j < s->num_cols_targeted_system_display_actual_peak_luminance; j++)
+            {
+                hb_bitstream_put_bits(&bs, s->targeted_system_display_actual_peak_luminance[i][j].num, 4);
+            }
+        }
+    }
+
+    for (int w = 0; w < s->num_windows; w++)
+    {
+        const AVHDRPlusColorTransformParams *params = &s->params[w];
+
+        for (int i = 0; i < 3; i++)
+        {
+            hb_bitstream_put_bits(&bs, params->maxscl[i].num, 17);
+        }
+        hb_bitstream_put_bits(&bs, params->average_maxrgb.num, 17);
+        hb_bitstream_put_bits(&bs, params->num_distribution_maxrgb_percentiles, 4);
+
+        for (int i = 0; i < params->num_distribution_maxrgb_percentiles; i++)
+        {
+            hb_bitstream_put_bits(&bs, params->distribution_maxrgb[i].percentage, 7);
+            hb_bitstream_put_bits(&bs, params->distribution_maxrgb[i].percentile.num, 17);
+        }
+
+        hb_bitstream_put_bits(&bs, params->fraction_bright_pixels.num, 10);
+    }
+
+    hb_bitstream_put_bits(&bs, s->mastering_display_actual_peak_luminance_flag, 1);
+
+    if (s->mastering_display_actual_peak_luminance_flag)
+    {
+        hb_bitstream_put_bits(&bs, s->num_rows_mastering_display_actual_peak_luminance, 5);
+        hb_bitstream_put_bits(&bs, s->num_cols_mastering_display_actual_peak_luminance, 5);
+
+        for (int i = 0; i < s->num_rows_mastering_display_actual_peak_luminance; i++)
+        {
+            for (int j = 0; j < s->num_cols_mastering_display_actual_peak_luminance; j++)
+            {
+                hb_bitstream_put_bits(&bs, s->mastering_display_actual_peak_luminance[i][j].num, 4);
+            }
+        }
+    }
+
+    for (int w = 0; w < s->num_windows; w++)
+    {
+        const AVHDRPlusColorTransformParams *params = &s->params[w];
+
+        hb_bitstream_put_bits(&bs, params->tone_mapping_flag, 1);
+        if (params->tone_mapping_flag)
+        {
+            hb_bitstream_put_bits(&bs, params->knee_point_x.num, 12);
+            hb_bitstream_put_bits(&bs, params->knee_point_y.num, 12);
+
+            hb_bitstream_put_bits(&bs, params->num_bezier_curve_anchors, 4);
+
+            for (int i = 0; i < params->num_bezier_curve_anchors; i++)
+            {
+                hb_bitstream_put_bits(&bs, params->bezier_curve_anchors[i].num, 10);
+            }
+        }
+
+        hb_bitstream_put_bits(&bs, params->color_saturation_mapping_flag, 1);
+
+        if (params->color_saturation_mapping_flag)
+        {
+            hb_bitstream_put_bits(&bs, params->color_saturation_weight.num, 6);
+        }
+    }
+
+    *buf_p = buf;
+    *size = hb_bitstream_get_count_of_used_bytes(&bs);
+}
+
 
 void av_assert0_fpu(void) {
 #if HAVE_MMX_INLINE
