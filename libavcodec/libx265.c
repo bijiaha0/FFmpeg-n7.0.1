@@ -849,15 +849,8 @@ static int libx265_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
     ret = ctx->api->encoder_encode(ctx->encoder, &nal, &nnal,
                                    pic ? &x265pic : NULL, &x265pic_out);
 
-    for (i = 0; i < sei->numPayloads; i++){
-        x265_sei_payload *sei_payload = &sei->payloads[i];
-        if (sei->payloads[i].payloadType == USER_DATA_REGISTERED_ITU_T_T35){
-            av_freep(&sei_payload->payload);
-        } else{
-            av_free(sei_payload->payload);
-        }
-    }
-
+    for (i = 0; i < sei->numPayloads; i++)
+        av_free(sei->payloads[i].payload);
     av_freep(&x265pic.quantOffsets);
 
     if (ret < 0)
