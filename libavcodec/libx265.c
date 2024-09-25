@@ -617,7 +617,7 @@ FF_ENABLE_DEPRECATION_WARNINGS
         {
             ctx->params->ambientIlluminance = av_rescale(ambient->ambient_illuminance.num, 10000, ambient->ambient_illuminance.den);
             ctx->params->ambientLightX = av_rescale(ambient->ambient_light_x.num, 50000, ambient->ambient_light_x.den);
-            ctx->params->ambientLightY = av_rescale(ambient->ambient_light_y.num, 50000, ambient->ambient_light_y.num);
+            ctx->params->ambientLightY = av_rescale(ambient->ambient_light_y.num, 50000, ambient->ambient_light_y.den);
             ctx->params->bEmitAmbientViewingEnvironment = 1;
         }
     }
