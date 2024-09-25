@@ -811,7 +811,7 @@ static int libx265_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
                     void *tmp;
                     x265_sei_payload *sei_payload = NULL;
 
-                    hb_dynamic_hdr10_plus_to_itu_t_t35((AVDynamicHDRPlus *)side_data, &payload,&payload_size);
+                    hb_dynamic_hdr10_plus_to_itu_t_t35((AVDynamicHDRPlus *)side_data->data, &payload,&payload_size);
                     if (!payload_size)
                     {
                         continue;
