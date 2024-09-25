@@ -42,6 +42,10 @@
 #include "sei.h"
 #include "libavcodec/bytestream.h"
 #include "itut35.h"
+#include "libavutil/ambient_viewing_environment.h"
+
+#define MASTERING_CHROMA_DEN 50000
+#define MASTERING_LUMA_DEN 10000
 
 typedef struct ReorderedData {
     int64_t duration;
@@ -530,6 +534,94 @@ FF_ENABLE_DEPRECATION_WARNINGS
             return AVERROR(EINVAL);
         }
     }
+
+    /*
+     * HDR10 Static metadata
+     */
+    const AVPacketSideData *side_data = NULL;
+    if (avctx->color_trc == AVCOL_TRC_SMPTE2084)
+    {
+        if (desc->comp[0].depth > 8)
+        {
+            if (ctx->api->param_parse(ctx->params, "hdr10-opt", "1"))
+            {
+                return AVERROR(EINVAL);
+            }
+        }
+
+        /*
+         * Mastering display metadata.
+         */
+        side_data = av_packet_side_data_get(avctx->coded_side_data,
+                                            avctx->nb_coded_side_data,
+                                            AV_PKT_DATA_MASTERING_DISPLAY_METADATA);
+
+        if (side_data){
+            AVMasteringDisplayMetadata *mastering = (AVMasteringDisplayMetadata *)side_data->data;
+
+            if (mastering->has_primaries && mastering->has_luminance)
+            {
+                char masteringDisplayColorVolume[256];
+                snprintf(masteringDisplayColorVolume, sizeof(masteringDisplayColorVolume),
+                         "G(%hu,%hu)B(%hu,%hu)R(%hu,%hu)WP(%hu,%hu)L(%u,%u)",
+                         (unsigned short)av_rescale(mastering->display_primaries[1][0].num, MASTERING_CHROMA_DEN, mastering->display_primaries[1][0].den),
+                         (unsigned short)av_rescale(mastering->display_primaries[1][1].num, MASTERING_CHROMA_DEN, mastering->display_primaries[1][1].den),
+                         (unsigned short)av_rescale(mastering->display_primaries[2][0].num, MASTERING_CHROMA_DEN, mastering->display_primaries[2][0].den),
+                         (unsigned short)av_rescale(mastering->display_primaries[2][1].num, MASTERING_CHROMA_DEN, mastering->display_primaries[2][1].den),
+                         (unsigned short)av_rescale(mastering->display_primaries[0][0].num, MASTERING_CHROMA_DEN, mastering->display_primaries[0][0].den),
+                         (unsigned short)av_rescale(mastering->display_primaries[0][1].num, MASTERING_CHROMA_DEN, mastering->display_primaries[0][1].den),
+                         (unsigned short)av_rescale(mastering->white_point[0].num, MASTERING_CHROMA_DEN, mastering->white_point[0].den),
+                         (unsigned short)av_rescale(mastering->white_point[1].num, MASTERING_CHROMA_DEN, mastering->white_point[1].den),
+                         (unsigned)av_rescale(mastering->max_luminance.num, MASTERING_LUMA_DEN, mastering->max_luminance.den),
+                         (unsigned)av_rescale(mastering->min_luminance.num, MASTERING_LUMA_DEN, mastering->min_luminance.den));
+
+                if (ctx->api->param_parse(ctx->params, "master-display", masteringDisplayColorVolume))
+                {
+                    return AVERROR(EINVAL);
+                }
+            }
+        }
+
+        /*
+         * Content light level.
+         */
+        side_data = av_packet_side_data_get(avctx->coded_side_data,
+                                            avctx->nb_coded_side_data,
+                                            AV_PKT_DATA_CONTENT_LIGHT_LEVEL);
+        if (side_data){
+            AVContentLightMetadata *coll = (AVContentLightMetadata *)side_data->data;
+
+            if (coll->MaxCLL && coll->MaxFALL)
+            {
+                char contentLightLevel[256];
+                snprintf(contentLightLevel, sizeof(contentLightLevel),
+                         "%hu,%hu",
+                         (unsigned short)coll->MaxCLL, (unsigned short)coll->MaxFALL);
+
+                if (ctx->api->param_parse(ctx->params, "max-cll", contentLightLevel))
+                {
+                    return AVERROR(EINVAL);
+                }
+            }
+        }
+    }
+
+    side_data = av_packet_side_data_get(avctx->coded_side_data,
+                                        avctx->nb_coded_side_data,
+                                        AV_PKT_DATA_AMBIENT_VIEWING_ENVIRONMENT);
+
+    if (side_data){
+        AVAmbientViewingEnvironment *ambient = (AVAmbientViewingEnvironment *)side_data->data;
+
+        if (ambient->ambient_illuminance.num && ambient->ambient_illuminance.den)
+        {
+            ctx->params->ambientIlluminance = av_rescale(ambient->ambient_illuminance.num, 10000, ambient->ambient_illuminance.den);
+            ctx->params->ambientLightX = av_rescale(ambient->ambient_light_x.num, 50000, ambient->ambient_light_x.den);
+            ctx->params->ambientLightY = av_rescale(ambient->ambient_light_y.num, 50000, ambient->ambient_light_y.num);
+            ctx->params->bEmitAmbientViewingEnvironment = 1;
+        }
+    }
+
 
     /*
      * Update and set Dolby Vision level
