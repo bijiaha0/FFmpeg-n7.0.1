@@ -418,7 +418,7 @@ void hb_dynamic_hdr10_plus_to_itu_t_t35(const AVDynamicHDRPlus *s, uint8_t **buf
     hb_bitstream_put_bits(&bs, terminalProviderOrientedCode, 16);
 
     hb_bitstream_put_bits(&bs, applicationIdentifier, 8);
-    hb_bitstream_put_bits(&bs, s->application_version, 8);
+    hb_bitstream_put_bits(&bs, 1, 8);
     hb_bitstream_put_bits(&bs, s->num_windows, 2);
 
     for (int w = 1; w < s->num_windows; w++)
