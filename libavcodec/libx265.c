@@ -806,23 +806,18 @@ static int libx265_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
                 if (passthru_dynamic_hdr_metadata & HDR_10_PLUS && side_data->type == AV_FRAME_DATA_DYNAMIC_HDR_PLUS)
                 {
 
-                    uint8_t t35_buf[6 + AV_HDR_PLUS_MAX_PAYLOAD_SIZE];
-                    uint8_t *payload = t35_buf;
-                    bytestream_put_byte(&payload, ITU_T_T35_COUNTRY_CODE_US);
-                    bytestream_put_be16(&payload, ITU_T_T35_PROVIDER_CODE_SMTPE);
-                    bytestream_put_be16(&payload, 0x01); // provider_oriented_code
-                    bytestream_put_byte(&payload, 0x04); // application_identifier
-
-                    size_t payload_size = sizeof(t35_buf) - 6;
-
-                    ret = av_dynamic_hdr_plus_to_t35((AVDynamicHDRPlus *)side_data, &payload,
-                                                     &payload_size);
-                    if (ret < 0)
-                        return ret;
-
-
+                    uint8_t *payload;
+                    size_t payload_size = 0;
                     void *tmp;
                     x265_sei_payload *sei_payload = NULL;
+
+                    hb_dynamic_hdr10_plus_to_itu_t_t35((AVDynamicHDRPlus *)side_data, &payload,&payload_size);
+                    if (!payload_size)
+                    {
+                        continue;
+                    }
+
+
                     tmp = av_fast_realloc(ctx->sei_data, &ctx->sei_data_size,(sei->numPayloads + 1) * sizeof(*sei_payload));
 
                     if (!tmp)
@@ -854,8 +849,15 @@ static int libx265_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
     ret = ctx->api->encoder_encode(ctx->encoder, &nal, &nnal,
                                    pic ? &x265pic : NULL, &x265pic_out);
 
-    for (i = 0; i < sei->numPayloads; i++)
-        av_free(sei->payloads[i].payload);
+    for (i = 0; i < sei->numPayloads; i++){
+        x265_sei_payload *sei_payload = &sei->payloads[i];
+        if (sei->payloads[i].payloadType == USER_DATA_REGISTERED_ITU_T_T35){
+            av_freep(&sei_payload->payload);
+        } else{
+            av_free(sei_payload->payload);
+        }
+    }
+
     av_freep(&x265pic.quantOffsets);
 
     if (ret < 0)

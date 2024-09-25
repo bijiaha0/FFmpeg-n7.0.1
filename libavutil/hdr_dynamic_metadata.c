@@ -24,6 +24,7 @@
 #include "libavcodec/defs.h"
 #include "libavcodec/get_bits.h"
 #include "libavcodec/put_bits.h"
+#include "libavcodec/itut35.h"
 
 static const int64_t luminance_den = 1;
 static const int32_t peak_luminance_den = 15;
@@ -238,14 +239,10 @@ int av_dynamic_hdr_plus_from_t35(AVDynamicHDRPlus *s, const uint8_t *data,
 
 int av_dynamic_hdr_plus_to_t35(const AVDynamicHDRPlus *s, uint8_t **data, size_t *size)
 {
-    uint8_t *buf;
+    uint8_t *buf = av_mallocz(2048);
     size_t size_bits, size_bytes;
     PutBitContext pbc, *pb = &pbc;
-
-    if (!s)
-        return AVERROR(EINVAL);
-    if ((!data || *data) && !size)
-       return AVERROR(EINVAL);
+    init_put_bits(pb, buf, 2048 << 3);
 
     /**
      * Buffer size per CTA-861-H p.253-254:
@@ -261,7 +258,8 @@ int av_dynamic_hdr_plus_to_t35(const AVDynamicHDRPlus *s, uint8_t **data, size_t
      * 1-7 bits per window for color saturation mapping information
      * Total: 123-7249 bits, excluding trimmed header bits
      */
-    size_bits = 8;
+    size_bits = 48;
+    size_bits += 8;
 
     size_bits += 2;
 
@@ -297,34 +295,35 @@ int av_dynamic_hdr_plus_to_t35(const AVDynamicHDRPlus *s, uint8_t **data, size_t
 
     size_bytes = (size_bits + 7) / 8;
 
-    av_assert0(size_bytes <= AV_HDR_PLUS_MAX_PAYLOAD_SIZE);
+    av_log(NULL, AV_LOG_INFO, "size_bits: %d, size_bytes: %d\n", size_bits, size_bytes);
 
-    if (!data) {
-        *size = size_bytes;
-        return 0;
-    } else if (*data) {
-        if (*size < size_bytes)
-            return AVERROR_BUFFER_TOO_SMALL;
-        buf = *data;
-    } else {
-        buf = av_malloc(size_bytes);
-        if (!buf)
-            return AVERROR(ENOMEM);
-    }
+    av_assert0(size_bytes <= 2048);
 
-    init_put_bits(pb, buf, size_bytes);
+    const uint8_t countryCode = 0xB5;
+    const uint16_t terminalProviderCode = 0x003C;
+    const uint16_t terminalProviderOrientedCode = 0x0001;
+    const uint8_t applicationIdentifier = 4;
 
+    put_bits(pb, 8, ITU_T_T35_COUNTRY_CODE_US);
+    put_bits(pb, 16, ITU_T_T35_PROVIDER_CODE_SMTPE);
+    put_bits(pb, 16, 0x01);
+    put_bits(pb, 8, 0x04);
+
+    // 10
     // application_mode is set to Application Version 1
-    put_bits(pb, 8, 1);
+    put_bits(pb, 8, s->application_version);
 
     // Payload as per CTA-861-H p.253-254
     put_bits(pb, 2, s->num_windows);
 
     for (int w = 1; w < s->num_windows; w++) {
-        put_bits(pb, 16, s->params[w].window_upper_left_corner_x.num / s->params[w].window_upper_left_corner_x.den);
-        put_bits(pb, 16, s->params[w].window_upper_left_corner_y.num / s->params[w].window_upper_left_corner_y.den);
-        put_bits(pb, 16, s->params[w].window_lower_right_corner_x.num / s->params[w].window_lower_right_corner_x.den);
-        put_bits(pb, 16, s->params[w].window_lower_right_corner_y.num / s->params[w].window_lower_right_corner_y.den);
+        // 64
+        put_bits(pb, 16, s->params[w].window_upper_left_corner_x.num);
+        put_bits(pb, 16, s->params[w].window_upper_left_corner_y.num);
+        put_bits(pb, 16, s->params[w].window_lower_right_corner_x.num);
+        put_bits(pb, 16, s->params[w].window_lower_right_corner_y.num);
+
+        // 89
         put_bits(pb, 16, s->params[w].center_of_ellipse_x);
         put_bits(pb, 16, s->params[w].center_of_ellipse_y);
         put_bits(pb, 8, s->params[w].rotation_angle);
@@ -334,12 +333,15 @@ int av_dynamic_hdr_plus_to_t35(const AVDynamicHDRPlus *s, uint8_t **data, size_t
         put_bits(pb, 1, s->params[w].overlap_process_option);
     }
 
-    put_bits(pb, 27, s->targeted_system_display_maximum_luminance.num * luminance_den /
-        s->targeted_system_display_maximum_luminance.den);
+    //28
+    put_bits(pb, 27, s->targeted_system_display_maximum_luminance.num);
     put_bits(pb, 1, s->targeted_system_display_actual_peak_luminance_flag);
+
     if (s->targeted_system_display_actual_peak_luminance_flag) {
+        //10
         put_bits(pb, 5, s->num_rows_targeted_system_display_actual_peak_luminance);
         put_bits(pb, 5, s->num_cols_targeted_system_display_actual_peak_luminance);
+
         for (int i = 0; i < s->num_rows_targeted_system_display_actual_peak_luminance; i++) {
             for (int j = 0; j < s->num_cols_targeted_system_display_actual_peak_luminance; j++)
                 put_bits(pb, 4, s->targeted_system_display_actual_peak_luminance[i][j].num * peak_luminance_den /
@@ -390,8 +392,133 @@ int av_dynamic_hdr_plus_to_t35(const AVDynamicHDRPlus *s, uint8_t **data, size_t
 
     flush_put_bits(pb);
 
+    av_log(NULL, AV_LOG_INFO, "bits: %d, bytes: %d\n", put_bits_count(pb), put_bytes_count(pb, 1));
+
     *data = buf;
     if (size)
         *size = size_bytes;
     return 0;
 }
+
+
+void hb_dynamic_hdr10_plus_to_itu_t_t35(const AVDynamicHDRPlus *s, uint8_t **buf_p, uint32_t *size)
+{
+    const uint8_t countryCode = 0xB5;
+    const uint16_t terminalProviderCode = 0x003C;
+    const uint16_t terminalProviderOrientedCode = 0x0001;
+    const uint8_t applicationIdentifier = 4;
+
+    uint8_t *buf = av_mallocz(2048);
+    hb_bitstream_t bs;
+
+    hb_bitstream_init(&bs, buf, 2048, 0);
+
+    hb_bitstream_put_bits(&bs, countryCode, 8);
+    hb_bitstream_put_bits(&bs, terminalProviderCode, 16);
+    hb_bitstream_put_bits(&bs, terminalProviderOrientedCode, 16);
+
+    hb_bitstream_put_bits(&bs, applicationIdentifier, 8);
+    hb_bitstream_put_bits(&bs, s->application_version, 8);
+    hb_bitstream_put_bits(&bs, s->num_windows, 2);
+
+    for (int w = 1; w < s->num_windows; w++)
+    {
+        const AVHDRPlusColorTransformParams *params = &s->params[w];
+
+        hb_bitstream_put_bits(&bs, params->window_upper_left_corner_x.num, 16);
+        hb_bitstream_put_bits(&bs, params->window_upper_left_corner_y.num, 16);
+        hb_bitstream_put_bits(&bs, params->window_lower_right_corner_x.num, 16);
+        hb_bitstream_put_bits(&bs, params->window_lower_right_corner_y.num, 16);
+
+        hb_bitstream_put_bits(&bs, params->center_of_ellipse_x, 16);
+        hb_bitstream_put_bits(&bs, params->center_of_ellipse_y, 16);
+        hb_bitstream_put_bits(&bs, params->rotation_angle, 8);
+        hb_bitstream_put_bits(&bs, params->semimajor_axis_internal_ellipse, 16);
+        hb_bitstream_put_bits(&bs, params->semimajor_axis_external_ellipse, 16);
+        hb_bitstream_put_bits(&bs, params->semiminor_axis_external_ellipse, 16);
+        hb_bitstream_put_bits(&bs, params->overlap_process_option, 1);
+    }
+
+    hb_bitstream_put_bits(&bs, s->targeted_system_display_maximum_luminance.num, 27);
+    hb_bitstream_put_bits(&bs, s->targeted_system_display_actual_peak_luminance_flag, 1);
+
+    if (s->targeted_system_display_actual_peak_luminance_flag)
+    {
+        hb_bitstream_put_bits(&bs, s->num_rows_targeted_system_display_actual_peak_luminance, 5);
+        hb_bitstream_put_bits(&bs, s->num_cols_targeted_system_display_actual_peak_luminance, 5);
+
+        for (int i = 0; i < s->num_rows_targeted_system_display_actual_peak_luminance; i++)
+        {
+            for (int j = 0; j < s->num_cols_targeted_system_display_actual_peak_luminance; j++)
+            {
+                hb_bitstream_put_bits(&bs, s->targeted_system_display_actual_peak_luminance[i][j].num, 4);
+            }
+        }
+    }
+
+    for (int w = 0; w < s->num_windows; w++)
+    {
+        const AVHDRPlusColorTransformParams *params = &s->params[w];
+
+        for (int i = 0; i < 3; i++)
+        {
+            hb_bitstream_put_bits(&bs, params->maxscl[i].num, 17);
+        }
+        hb_bitstream_put_bits(&bs, params->average_maxrgb.num, 17);
+        hb_bitstream_put_bits(&bs, params->num_distribution_maxrgb_percentiles, 4);
+
+        for (int i = 0; i < params->num_distribution_maxrgb_percentiles; i++)
+        {
+            hb_bitstream_put_bits(&bs, params->distribution_maxrgb[i].percentage, 7);
+            hb_bitstream_put_bits(&bs, params->distribution_maxrgb[i].percentile.num, 17);
+        }
+
+        hb_bitstream_put_bits(&bs, params->fraction_bright_pixels.num, 10);
+    }
+
+    hb_bitstream_put_bits(&bs, s->mastering_display_actual_peak_luminance_flag, 1);
+
+    if (s->mastering_display_actual_peak_luminance_flag)
+    {
+        hb_bitstream_put_bits(&bs, s->num_rows_mastering_display_actual_peak_luminance, 5);
+        hb_bitstream_put_bits(&bs, s->num_cols_mastering_display_actual_peak_luminance, 5);
+
+        for (int i = 0; i < s->num_rows_mastering_display_actual_peak_luminance; i++)
+        {
+            for (int j = 0; j < s->num_cols_mastering_display_actual_peak_luminance; j++)
+            {
+                hb_bitstream_put_bits(&bs, s->mastering_display_actual_peak_luminance[i][j].num, 4);
+            }
+        }
+    }
+
+    for (int w = 0; w < s->num_windows; w++)
+    {
+        const AVHDRPlusColorTransformParams *params = &s->params[w];
+
+        hb_bitstream_put_bits(&bs, params->tone_mapping_flag, 1);
+        if (params->tone_mapping_flag)
+        {
+            hb_bitstream_put_bits(&bs, params->knee_point_x.num, 12);
+            hb_bitstream_put_bits(&bs, params->knee_point_y.num, 12);
+
+            hb_bitstream_put_bits(&bs, params->num_bezier_curve_anchors, 4);
+
+            for (int i = 0; i < params->num_bezier_curve_anchors; i++)
+            {
+                hb_bitstream_put_bits(&bs, params->bezier_curve_anchors[i].num, 10);
+            }
+        }
+
+        hb_bitstream_put_bits(&bs, params->color_saturation_mapping_flag, 1);
+
+        if (params->color_saturation_mapping_flag)
+        {
+            hb_bitstream_put_bits(&bs, params->color_saturation_weight.num, 6);
+        }
+    }
+
+    *buf_p = buf;
+    *size = hb_bitstream_get_count_of_used_bytes(&bs);
+}
+
